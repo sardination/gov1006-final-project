@@ -28,3 +28,6 @@ Glimpse:
 ```{r data_glimpse}
 glimpse(table)
 ```
+
+
+Repository: [https://github.com/sardination/gov1006-final-project](https://github.com/sardination/gov1006-final-project)
