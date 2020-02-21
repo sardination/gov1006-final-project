@@ -1,0 +1,73 @@
+Replication Files for Devin Caughey & Christopher Warshaw, "Policy Preferences and Policy Change: Dynamic Responsiveness in the American States, 1936–2014", APSR
+
+The files in this folder permit replication of the analyses reported by Caughey and Warshaw. The file "caughey_warshaw_summary.dta" (which is not listed in the directory structure below) contains the key public opinion and policy liberalism measures we created for the paper. If you want to run the replication code in full, you must first re-create the directory structure described below on your local directory (note that some of the files listed below must be created by running the code):
+
+├── 0-README
+├── code
+│   ├── 1Save_Samples.R
+│   ├── 2Poststratify_Samples.R
+│   ├── 3Create_Data.R
+│   ├── 4Load_and_Prep.R
+│   ├── 5Analyze.R
+│   ├── 6Figures.R
+│   ├── 7Robustness.R
+│   ├── 8Tables.R
+│   └── subsampled
+│       ├── subsample1Save_Samples.R
+│       ├── subsample2Poststratify_Samples.R
+│       ├── subsample3Create_Data.R
+│       ├── subsample4Load_and_Prep.R
+│       ├── subsample5Analyze.R
+│       └── subsample6Tables.R
+├── input-data
+│   ├── Partisan_Balance_For_Use2011_06_09b.csv
+│   ├── StYrPID-poststratified-posterior-170918.dta
+│   ├── dgirt_output_170628_1936-2014_social_varyingitems_blackurban_nocovariates.Rdata
+│   ├── dgirt_output_170915_1936-2014_economic_varyingitems_blackurban_nocovariates_1000iter_DC.RData
+│   ├── dynamic.irt.continuous.evolving.diff.stan-economic-1000.Rdata
+│   ├── dynamic.irt.continuous.evolving.diff.stan-social-10003.Rdata
+│   ├── opinion_TSCS.RData
+│   ├── stateleg_term_length_imp_est.csv
+│   ├── subsampled
+│   │   ├── dgirt_output_170608_1936-2014_economic_varyingitems_states_sample.RData
+│   │   └── dgirt_output_170608_1936-2014_social_varyingitems_states_sample.RData
+│   └── targets.rds
+├── intermediate-data
+│   ├── data_for_analysis.dta
+│   ├── samples170628_1936-2014_social_varyingitems_blackurban_nocovariates-st_est.dta
+│   ├── samples170628_1936-2014_social_varyingitems_blackurban_nocovariates.dta
+│   ├── samples170915_1936-2014_economic_varyingitems_blackurban_nocovariates_1000iter_DC-st_est.dta
+│   ├── samples170915_1936-2014_economic_varyingitems_blackurban_nocovariates_1000iter_DC.dta
+│   ├── samples_PID.dta
+│   ├── samples_dynamic_irt_continuous_evolving_diff_stan-economic-1000.dta
+│   ├── samples_dynamic_irt_continuous_evolving_diff_stan-social-10003.dta
+│   └── subsampled
+│       ├── dgirt_output_170608_1936-2014_economic_varyingitems_states_sample.dta
+│       ├── dgirt_output_170608_1936-2014_social_varyingitems_states_sample.dta
+│       ├── samples_dgirt_output_170608_1936-2014_economic_varyingitems_states_sample-st_est.dta
+│       ├── samples_dgirt_output_170608_1936-2014_social_varyingitems_states_sample-st_est.dta
+│       └── subsampled_data_for_analysis.dta
+├── output-data
+│   ├── Analyze.RData
+│   ├── Robustness.RData
+│   └── subsampled
+│       └── subsampled_output.RData
+└── pdf
+    ├── maps_mass_econ.pdf
+    ├── maps_mass_social.pdf
+    ├── xs_respons_econ_by_era_south.pdf
+    └── xs_respons_social_by_era_south.pdf
+
+
+The R files in the "code" directory do the following:
+- 1Save_Samples.R: Loads the raw Monte Carlo samples, organizes them into dataset form, and saves them as Stata dta files in the "intermediate-data" directory". NB: Quit when this is complete.
+- 2Poststratify_Samples.R: Poststratifies the group-specific opinion estimates to produce state estimates. NB: Quit when this is complete.
+- 3Create_Data.R: Merges various data sources together into a single dataset, in which each row is a state-year-iteration triad. NB: Quit when this is complete.
+- 4Load_and_Prep.R: Formats and recodes the data into formats suitable for analysis. NB: Do NOT quit when this is complete.
+- 5Analyze.R: Performs the analyses reported in the main text of the paper.
+- 6Figures.R: Generates the figures used in the main text of the paper and saves them in the "pdf" directory. NB: This file presumes that the R workspace includes the objects loaded/created by  4Load_and_Prep.R and 5Analyze.R.
+- 7Robustness.R: Runs various robustness checks. NB: This file presumes that the R workspace includes the objects loaded/created by  4Load_and_Prep.R and 5Analyze.R.
+- 8Tables.R: Produces the tables used in the paper. NB: This file should be run from a clean R workspace (it loads the relevant objects from output-data/Analyze.RData).
+Note that the above R scripts assume that the working directory is initially set to "code".
+
+The R files in code/subsampled replicate most of the analyses above, but with mass liberalism measures dervied from a subsampled dataset.
