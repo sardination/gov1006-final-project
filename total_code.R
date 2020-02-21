@@ -1,0 +1,221 @@
+# -------- 1Save_Samples.R --------
+setwd("../") ## replication directory
+(rep.dir <- getwd())
+
+# Selection of social and economic opinion data to use
+mass.social.name <-
+  "170628_1936-2014_social_varyingitems_blackurban_nocovariates"
+mass.econ.name <-
+  "170915_1936-2014_economic_varyingitems_blackurban_nocovariates_1000iter_DC"
+
+### Read
+# Reads in input data, including social opinion, economic opinion, social policy liberalism measures,
+#   economic policy liberalism measures, and public party identification information for states by year
+setwd(paste0(rep.dir, "/input-data"))
+# Reads in the opinion data specified above
+social.opinion.samples <-
+  mget(load(paste0("dgirt_output_", mass.social.name, ".RData")))
+economic.opinion.samples <- 
+  mget(load(paste0("dgirt_output_", mass.econ.name, ".RData")))
+# Reads in policy measures over time
+social.policy.samples <-
+  mget(load("dynamic.irt.continuous.evolving.diff.stan-social-10003.Rdata"))
+economic.policy.samples <- 
+  mget(load("dynamic.irt.continuous.evolving.diff.stan-economic-1000.Rdata"))
+# This reads in public party indentification information from a Stata data file into an R dataframe
+pid.samples <- foreign::read.dta("StYrPID-poststratified-posterior-170918.dta")
+
+### Transform
+# Convert and save the relevant output from each of the sample sets into a dataframe for manipulation
+social.opinion.samples.df <- as.data.frame(social.opinion.samples$dgirt_out)
+economic.opinion.samples.df <- as.data.frame(economic.opinion.samples$dgirt_out)
+social.policy.samples.df <- as.data.frame(social.policy.samples$stan.cmb)
+economic.policy.samples.df <- as.data.frame(economic.policy.samples$stan.cmb)
+
+library(plyr)
+library(dplyr)
+library(reshape2)
+
+# Verify that the list of state abbreviations is in ascending alphabetical order
+stpos <- c("AK", "AL", "AR", "AZ", "CA", "CO", "CT", "DE", "FL", "GA", "HI",
+           "IA", "ID", "IL", "IN", "KS", "KY", "LA", "MA", "MD", "ME", "MI",
+           "MN", "MO", "MS", "MT", "NC", "ND", "NE", "NH", "NJ", "NM", "NV",
+           "NY", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT",
+           "VA", "VT", "WA", "WI", "WV", "WY")
+length(stpos)
+identical(stpos, sort(stpos))
+
+
+social.policy.samples.df <- social.policy.samples.df %>%
+  select(contains("theta")) %>%
+  melt %>%
+  group_by(variable) %>%
+  mutate(iteration = row_number(value)) %>%
+  arrange(iteration) %>%
+  ungroup %>%
+  mutate(Year = as.integer(gsub("theta\\[(.*),.*\\]", "\\1", variable)),
+         Year = factor(Year, labels=as.character(1935:2014)),
+         StPO = as.integer(gsub("theta\\[.*,(.*)\\]", "\\1", variable)),
+         StPO = factor(StPO, labels=stpos))
+
+economic.policy.samples.df <-
+  economic.policy.samples.df %>%
+  select(contains("theta")) %>%
+  melt %>%
+  group_by(variable) %>%
+  mutate(iteration = row_number(value)) %>%
+  arrange(iteration) %>%
+  ungroup %>%
+  mutate(Year = as.integer(gsub("theta\\[(.*),.*\\]", "\\1", variable)),
+         Year = factor(Year, labels=as.character(1935:2014)),
+         StPO = as.integer(gsub("theta\\[.*,(.*)\\]", "\\1", variable)),
+         StPO = factor(StPO, labels=stpos))
+
+social.policy.samples.df <- social.policy.samples.df %>%
+  select(c(StPO=StPO, Year=Year, Liberalism=value, Iteration=iteration))
+social.policy.samples.df <- social.policy.samples.df %>%
+  arrange(Iteration, Year, StPO)
+
+economic.policy.samples.df <- economic.policy.samples.df %>%
+  select(c(StPO=StPO, Year=Year, Liberalism=value, Iteration=iteration))
+economic.policy.samples.df <- economic.policy.samples.df %>%
+  arrange(Iteration, Year, StPO)
+
+pid.samples.df <- pid.samples %>%
+  filter(!is.na(StPOAbrv)) %>%
+  mutate(Iteration = iterations,
+         StPO = factor(StPOAbrv, levels=stpos),
+         Year = as.integer(Year)) %>%
+  group_by(Year, StPO, Iteration) %>%
+  summarise(DemPID = pid_total[PID=="D"],
+            IndPID = pid_total[PID=="I"],
+            RepPID = pid_total[PID=="R"])
+
+pid.samples.df <- pid.samples.df %>%
+  mutate(Dem2PID = DemPID / (DemPID + RepPID)) %>%
+  arrange(Iteration, Year, StPO)
+
+## Write
+setwd(paste0(rep.dir, "/intermediate-data"))
+foreign::write.dta(
+  social.opinion.samples.df,
+  paste0("samples", mass.social.name, ".dta"))
+foreign::write.dta(
+  economic.opinion.samples.df,
+  paste0("samples", mass.econ.name, ".dta"))
+foreign::write.dta(
+  social.policy.samples.df,
+  "samples_dynamic_irt_continuous_evolving_diff_stan-social-10003.dta")
+foreign::write.dta(
+  economic.policy.samples.df,
+  "samples_dynamic_irt_continuous_evolving_diff_stan-economic-1000.dta")
+foreign::write.dta(
+  pid.samples.df,
+  "samples_PID.dta")
+
+# q()
+
+# -------- 2Poststratify_Samples.R --------
+setwd("../") ## replication directory
+(rep.dir <- getwd())
+
+library(dgo)
+library(dplyr)
+library(foreign)
+
+mass.social.name <-
+  "170628_1936-2014_social_varyingitems_blackurban_nocovariates"
+mass.econ.name <-
+  "170915_1936-2014_economic_varyingitems_blackurban_nocovariates_1000iter_DC"
+
+### Read
+setwd(paste0(rep.dir, "/intermediate-data"))
+social.opinion.samples.df <-
+  read.dta(paste0("samples", mass.social.name, ".dta"))
+economic.opinion.samples.df <-
+  read.dta(paste0("samples", mass.econ.name, ".dta"))
+setwd(paste0(rep.dir, "/input-data"))
+targets <- readRDS(file = "targets.rds")
+
+## Mutate
+group.targets <- targets %>%
+  mutate(D_year = as.integer(D_year),
+         D_black_x_urban4 = ifelse(     #1: non-black, rural
+           D_black == "D_blacknon-black" & D_urban == "D_urban0",
+           "D_black_x_urban1", NA),
+         D_black_x_urban4 = ifelse(     #2: non-black, urban
+           D_black == "D_blacknon-black" & D_urban == "D_urban1",
+           "D_black_x_urban2", D_black_x_urban4),
+         D_black_x_urban4 = ifelse(     #3: black, rural
+           D_black == "D_blackblack" & D_urban == "D_urban0",
+           "D_black_x_urban3", D_black_x_urban4),
+         D_black_x_urban4 = ifelse(     #4: black, urban
+           D_black == "D_blackblack" & D_urban == "D_urban1",
+           "D_black_x_urban4", D_black_x_urban4),
+         D_black_x_urban4 = factor(as.character(D_black_x_urban4)))
+
+st.targets <-
+  aggregate(Prop ~ D_abb + D_year + D_black_x_urban4, group.targets, sum)
+st.targets <- as.data.frame(st.targets)
+glimpse(st.targets)
+
+### Poststratify
+yrs.to.est <- 1936:2014
+
+social.iters <- 1:max(social.opinion.samples.df$iteration)
+social.opinion.samples.subset <- social.opinion.samples.df %>%
+  filter(iteration %in% social.iters)
+social.opinion.samples.st <- social.iters %>%
+  plyr::llply(function (i) {
+    social.opinion.samples.df %>%
+      filter(iteration == i) %>%
+      poststratify(target_data=st.targets,
+                   strata_names=c("D_abb", "D_year"),
+                   aggregated_names="D_black_x_urban4",
+                   proportion_name="Prop") %>%
+      mutate(Iteration = i)
+  }) %>%
+  bind_rows
+summary(social.opinion.samples.st)
+
+social.opinion.samples.st <- social.opinion.samples.st %>%
+  select(StPO = D_abb,
+         Year = D_year,
+         MassSocialLib = value,
+         Iteration = Iteration) %>%
+  mutate(StPO = factor(gsub("D\\_abb(.*)", "\\1", StPO)))
+
+economic.iters <- 1:max(economic.opinion.samples.df$iteration)
+economic.opinion.samples.subset <- economic.opinion.samples.df %>%
+  filter(iteration %in% economic.iters)
+economic.opinion.samples.st <- economic.iters %>%
+  plyr::llply(function (i) {
+    economic.opinion.samples.df %>%
+      filter(iteration == i) %>%
+      poststratify(target_data=st.targets,
+                   strata_names=c("D_abb", "D_year"),
+                   aggregated_names="D_black_x_urban4",
+                   proportion_name="Prop") %>%
+      mutate(Iteration = i)
+  }) %>%
+  bind_rows
+summary(economic.opinion.samples.st)
+
+economic.opinion.samples.st <- economic.opinion.samples.st %>%
+  select(StPO = D_abb,
+         Year = D_year,
+         MassEconLib = value,
+         Iteration = Iteration) %>%
+  mutate(StPO = factor(gsub("D\\_abb(.*)", "\\1", StPO)))
+
+### Write
+setwd(paste0(rep.dir, "/intermediate-data"))
+write.dta(
+  social.opinion.samples.st,
+  paste0("samples", mass.social.name, "-st_est.dta"))
+write.dta(
+  economic.opinion.samples.st,
+  paste0("samples", mass.econ.name, "-st_est.dta"))
+
+# q()
+

@@ -1,0 +1,20 @@
+---
+title: "Gov 1006 Final Project - Milestone 3"
+output: html_document
+---
+
+## Suriya Kandaswamy
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+### Policy Preferences and Policy Change: Dynamic Responsiveness in the American States, 1936-2014
+#### Devin Caughey and Christopher Warshaw
+
+This paper discusses the predictors of state policy change and pinpoints what factors have the strongest impact on a state's liberalism. In particular, the authors focus on mass political consensus and state policy response to changes in this consensus. They have acquired measures of mass policy preferences through an accumulation of multiple poll responses over time and of state policy liberalism using some defined estimates. Responsiveness is then measured as a relationship between the liberalism of the masses and the liberalism of the policies at each given moment in time. The paper shows that the public liberalism generally predicts the liberalism of a state's policies, although the response to shifts in public liberalism are gradual when reflected in the state's policies. The state government's partisanness, on the other hand, is not a good predictor of state policy liberalism, indicating that public opinion does, at least gradually, have a strong impact on the skew of the policy that is established in the state.
+
+[Paper](https://www-cambridge-org.ezp-prod1.hul.harvard.edu/core/services/aop-cambridge-core/content/view/8EC04664B89C28D46EDC266E3313BBBC/S0003055417000533a.pdf/policy_preferences_and_policy_change_dynamic_responsiveness_in_the_american_states_19362014.pdf) | [Replication Data](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/K3QWZW)
+
+Repository: [https://github.com/sardination/gov1006-final-project](https://github.com/sardination/gov1006-final-project)
