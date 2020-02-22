@@ -3,11 +3,13 @@
 ################################################################################
 
 ### FIGURE 2
+# Generate a plot of summary models foudn in part 5 with states labeled
 summ.map <- merge(summ, map_data("state"), by.x="name", by.y="region")
 summ.map <- arrange(summ.map, group, order)
 
 map.yrs <- c(1940, 1975, 2010)
 
+# Create economic and social liberalism US maps colored by opinion data.
 ## Economic
 setwd(paste0(rep.dir, "/pdf"))
 pdf("maps_mass_econ.pdf", height=1.5, width=6.5)
@@ -37,7 +39,9 @@ summ.map %>%
 dev.off()
 
 ### FIGURE 3
-
+# Plot the linear regression of mass liberalism against government liberalism
+#   generated in the southern impact model for both economic liberalism
+#   and social liberalism, including the grouping by pre vs post 1972 and state.
 ## Economic
 setwd(paste0(rep.dir, "/pdf"))
 pdf("xs_respons_econ_by_era_south.pdf", width=7.5, height=4)
@@ -80,6 +84,9 @@ dev.off()
 
 
 ### MORE PLOTS
+# Plot 
+# Plot the linear regression of mass liberalism against policy liberalism
+#   generated for social liberalism including grouping by state and southernness.
 summ %>%
   group_by(## Pre72, 
            StPO, South11) %>%
@@ -99,6 +106,8 @@ summ %>%
        color=NULL, lty=NULL) +
   ggtitle("Social Issues") 
 
+# Plot the linear regression of mass liberalism against policy liberalism
+#   generated for economic liberalism including grouping by state and southernness.
 summ %>%
   group_by(## Pre72, 
            StPO, South11) %>%
@@ -118,6 +127,9 @@ summ %>%
        color=NULL, lty=NULL) +
   ggtitle("Economic Issues")
 
+# Plot the linear regression of democratic control against social policy liberalism
+#   generated for social liberalism including grouping by state and southernness
+#   and including summary effects of partisan control of the legislature.
 summ %>%
   group_by(## Pre72, 
            StPO, South11) %>%
@@ -137,6 +149,9 @@ summ %>%
        color=NULL, lty=NULL) +
   ggtitle("Social Issues") 
 
+# Plot the linear regression of democratic control against economic policy liberalism
+#   generated for economic liberalism including grouping by state and southernness
+#   and including summary effects of partisan control of the legislature.
 summ %>%
   group_by(## Pre72, 
            StPO, South11) %>%
@@ -156,6 +171,9 @@ summ %>%
        color=NULL, lty=NULL) +
   ggtitle("Economic Issues")
 
+# Plot the linear regression of mass liberalism against party identification proportions
+#   generated for social liberalism including grouping by state and southernness
+#   and including summary effects of public partisan identification.
 summ %>%
   group_by(## Pre72, 
            StPO, South11) %>%
@@ -175,6 +193,9 @@ summ %>%
        color=NULL, lty=NULL) +
   ggtitle("Social Liberalism and Democratic Partisanship") 
 
+# Plot the linear regression of mass liberalism against party identification proportions
+#   generated for economic liberalism including grouping by state and southernness
+#   and including summary effects of public partisan identification.
 summ %>%
   group_by(## Pre72, 
            StPO, South11) %>%
@@ -194,6 +215,8 @@ summ %>%
        color=NULL, lty=NULL) +
   ggtitle("Economic Liberalism and Democratic Partisanship") 
 
+# Plot the linear regression of mass liberalism against partisan legislature control
+#   generated for social liberalism including grouping by state and southernness.
 summ %>%
   group_by(## Pre72, 
            StPO, South11) %>%
@@ -213,6 +236,8 @@ summ %>%
        color=NULL, lty=NULL) +
   ggtitle("Social Liberalism and Democratic Control") 
 
+# Plot the linear regression of mass liberalism against partisan legislature control
+#   generated for economic liberalism including grouping by state and southernness.
 summ %>%
   group_by(## Pre72, 
            StPO, South11) %>%
@@ -232,6 +257,8 @@ summ %>%
        color=NULL, lty=NULL) +
   ggtitle("Economic Liberalism and Democratic Control") 
 
+# Plot the linear regression of mass liberalism against government liberalism
+#   generated for social liberalism labeled by party identification.
 summ %>%
   ungroup %>%
   filter(!is.na(DemControl)) %>%
@@ -245,6 +272,8 @@ summ %>%
   ggtitle("Economic Policies") +
   theme(plot.title = element_text(hjust = 0.5)) 
 
+# Plot the linear regression of mass liberalism against government liberalism
+#   generated for economic liberalism labeled by party identification.
 summ %>%
   ungroup %>%
   filter(!is.na(DemControl)) %>%
