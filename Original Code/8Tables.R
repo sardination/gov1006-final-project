@@ -17,6 +17,9 @@ library(reshape2)
 library(maps)
 library(mapproj)
 
+# This chunk of code generates a number of formatted LaTeX tables
+#   summarizing the findings from previous sections.
+
 StarsToBold <- function (text) {
   out <- gsub("([[:digit:]]+)\\^\\{\\*+\\}", "\\\\textbf{\\1}", text)
   cat(out, sep="\n")
@@ -24,6 +27,8 @@ StarsToBold <- function (text) {
 }
 
 ### TABLE 1
+# Table 1 lists policy liberalism effects with covariates of opinion
+#   liberalism, southernness, and policy liberalism.
 tab1.mods %>%
   stargazer(
     type="latex"
@@ -55,6 +60,8 @@ tab1.mods %>%
   ) %>%
   StarsToBold()
 
+# Table 2 lists democratic legislative control effects with covariates of opinion
+#   liberalism, public partisanness, and democratic legislative control.
 tab2.mods %>%
   stargazer(
     type="latex"
@@ -84,6 +91,9 @@ tab2.mods %>%
   ) %>%
   StarsToBold()
 
+# Table 3 lists policy liberalism effects with covariates of democrat
+#   legislature control, opinion liberalism, whether it is the year
+#   after a house election, and policy liberalism.
 tab3.mods %>%
   stargazer(
     type="latex"
@@ -117,6 +127,9 @@ tab3.mods %>%
   ) %>%
   StarsToBold()
 
+# Table 4 lists policy liberalism effects with covariates of opinion
+#   liberalism, southernness, pre vs post 1972, southernness, and 
+#   institutional effect variables.
 tab4.mods %>%
   stargazer(
     type="latex"
@@ -299,7 +312,8 @@ stargazer(inst.mods
 ################################################################################
 #### RESULTS WITHOUT CORRECTING FOR MEASUREMENT ERROR ##########################
 ################################################################################
-
+# This section recreates the four tables at the top, except while excluding
+#   corrections for measurement error.
 tab1.mods %>%
   stargazer(
     type="latex"
