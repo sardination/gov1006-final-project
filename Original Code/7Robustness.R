@@ -1,7 +1,9 @@
 ################################################################################
 #### REPLICATION DROPPING STATE FES ############################################
 ################################################################################
-
+# Replicate the findings of every model in Part 5 subtracting the effects of the
+#   state factor, essentially remodeling except without state included
+#   as a model factor. Store these in the `model_ldv` frame.
 model_ldv.ls <-  model.ls
 for (i in seq_along(model.names)) {
   nm <- model.names[i]
@@ -30,7 +32,8 @@ for (i in seq_along(model.names)) {
 ################################################################################
 #### REPLICATION WITH STANDARDIZED VARIABLES ###################################
 ################################################################################
-
+# Replicate the findings of every model in Part 5 except using standardized
+#   variables for all variables, including IV and DV.
 model00.ls <-  model.ls
 for (i in seq_along(model.names)) {
   nm <- model.names[i]
