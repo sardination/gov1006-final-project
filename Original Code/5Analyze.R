@@ -2,6 +2,10 @@
 #### SUMMARY STATISTICS ########################################################
 ################################################################################
 
+# Take summary statistics collected from Part 4 and select only the columns
+#   of all sample liberalism measure means as well as the means of 
+#   democratic party proportions and democratic control information
+# Output this summary information as a LaTeX formatted table
 summ %>%
   ungroup() %>%
   dplyr::select(
@@ -36,22 +40,26 @@ loop_purtest <- function (pvars, int, args=test.args) {
   })
 }
 mean_lags <- function (purtest.res) {
+  # Get mean of lags in summary dataframe
   plyr::llply(purtest.res, function (x) {
     plyr::laply(x$idres, function (y) y$lags)
   }) %>% plyr::llply(mean)
 }
 median_lags <- function (purtest.res) {
+  # Get median of lags in summary dataframe
   plyr::llply(purtest.res, function (x) {
     plyr::laply(x$idres, function (y) y$lags)
   }) %>% plyr::llply(median)
 }
 summ_trho <- function (purtest.res) {
+  # Summarize trho value from summary dataframe
   plyr::llply(purtest.res, function (x) {
     plyr::laply(x$idres, function (y) y$trho)
   }) %>%
     plyr::llply(function (z) c(summary(z), "Prop. Neg." = mean(z < 0)))
 }
 MOCmean <- function (mod.ls) {
+  # Mean of Method of Composition error-accounted variables
   if (all(plyr::laply(mod.ls, function (x) "moc" %in% names(x)))) {
     plyr::llply(mod.ls, function (x) apply(x$moc, 2, mean))
   } else {
@@ -59,6 +67,7 @@ MOCmean <- function (mod.ls) {
   }
 }
 MOCsd <- function (mod.ls) {
+  # Standard deviation of Method of Composition error-accounted variables
   if (all(plyr::laply(mod.ls, function (x) "moc" %in% names(x)))) {
     plyr::llply(mod.ls, function (x) apply(x$moc, 2, sd))
   } else {
@@ -114,10 +123,14 @@ summ_trho(pur00int)
 ################################################################################
 #### ANALYSES ##################################################################
 ################################################################################
-  
+
+# Get a random sample of 500 iterations to use, then sort the chosen iterations
+#   in ascending order
 set.seed(1)
 its <- sort(sample(unique(data$It), min(500, length(unique(data$It)))))
 
+# All model estimates will be stored in the same large dataframe under each
+#    of these column names
 model.names <- c(
   ## Table 1
   "xs_south_social", "xs_south_econ", "fe_south_social", "fe_south_econ",
@@ -138,6 +151,11 @@ names(model.ls) <- model.names
   
 ### CROSS-SECTIONAL
 ## Social
+# Apply a linear model to the social policy liberalism using social opinion
+#   liberalism, southernness, and year as factors. Store this model,
+#   the z-test results, and method of composition error-accounting results.
+#   Plot the regression results with error accounted for by method of composition
+#   against social opinion policy liberalism.
 model.ls[["xs_south_social"]]$model <-
   plm(Policy_mean ~
         MassM1_mean * South11 +
@@ -153,8 +171,11 @@ model.ls[["xs_south_social"]]$moc %>%
   geom_histogram()
 
 ## Econ
+# Update the above social liberalism model to use the same variables, but 
+#   with economic policy liberalism and economic opinion liberalism data.
+#   Store the resulting updated model as well and plot the same way as above.
 model.ls[["xs_south_econ"]]$model <- model.ls[["xs_south_social"]]$model %>%
-  update(data=summ.pd.social)
+  update(data=summ.pd.social) # NOTE SK: THIS SHOULD SAY `summ.pd.econ`
 (model.ls[["xs_south_econ"]]$coeftest <-
    clusterSE(model.ls[["xs_south_econ"]]$model))
 model.ls[["xs_south_econ"]]$moc <-
@@ -166,6 +187,11 @@ model.ls[["xs_south_econ"]]$moc %>%
 
 ### TWO-WAY FIXED EFFECTS
 ## Social
+# Apply a linear model to the social policy liberalism using social opinion
+#   liberalism, southernness, year, and state as factors. Store this model,
+#   the z-test results, and method of composition error-accounting results.
+#   Plot the regression results with error accounted for by method of composition
+#   against social opinion policy liberalism.
 model.ls[["fe_south_social"]]$model <-
   plm(Policy_mean ~
         MassM1_mean * South11 +
@@ -182,6 +208,9 @@ model.ls[["fe_south_social"]]$moc %>%
   geom_histogram()
 
 ## Econ
+# Update the above social liberalism model to use the same variables, but 
+#   with economic policy liberalism and economic opinion liberalism data.
+#   Store the resulting updated model as well and plot the same way as above.
 model.ls[["fe_south_econ"]]$model <- model.ls[["fe_south_social"]]$model %>%
   update(data=summ.pd.econ)
 (model.ls[["fe_south_econ"]]$coeftest <-
@@ -195,6 +224,11 @@ model.ls[["fe_south_econ"]]$moc %>%
 
 ### DYNAMIC (LDV)
 ## Social
+# Apply a linear model to the social policy liberalism using social opinion
+#   liberalism, southernness, year, and first-group social policy liberalism means as factors. 
+#   Store this model, the z-test results, and method of composition error-accounting results.
+#   Plot the regression results with error accounted for by method of composition
+#   against social opinion policy liberalism.
 model.ls[["dyn_south_social"]]$model <-
   plm(Policy_mean ~
         MassM1_mean * South11 +
@@ -208,6 +242,9 @@ model.ls[["dyn_south_social"]]$moc <-
 MOCsumm(model.ls[["dyn_south_social"]]$moc)
 
 ## Econ
+# Update the above social liberalism model to use the same variables, but 
+#   with economic policy liberalism and economic opinion liberalism data.
+#   Store the resulting updated model as well and plot the same way as above.
 model.ls[["dyn_south_econ"]]$model <- model.ls[["dyn_south_social"]]$model %>%
   update(data=summ.pd.econ)
 (model.ls[["dyn_south_econ"]]$coeftest <-
@@ -233,6 +270,12 @@ plmtest(model.ls[["dyn_south_econ"]]$model, effect="individual")
 
 ### DYNAMIC PANEL (LDV + FE)
 ## Social
+# Apply a linear model to the social policy liberalism using social opinion
+#   liberalism, southernness, year, first-group social policy liberalism means,
+#   and state as factors. Store this model, the z-test results, and
+#   method of composition error-accounting results.
+#   Plot the regression results with error accounted for by method of composition
+#   against social opinion policy liberalism.
 model.ls[["dp_south_social"]]$model <- 
   plm(Policy_mean ~
         MassM1_mean * South11 +
@@ -253,6 +296,9 @@ model.ls[["dp_south_social"]]$moc %>%
   geom_histogram()
 
 ## Econ
+# Update the above social liberalism model to use the same variables, but 
+#   with economic policy liberalism and economic opinion liberalism data.
+#   Store the resulting updated model as well and plot the same way as above.
 model.ls[["dp_south_econ"]]$model <- model.ls[["dp_south_social"]]$model %>%
   update(data=summ.pd.econ)
 (model.ls[["dp_south_econ"]]$coeftest <-
@@ -269,6 +315,8 @@ model.ls[["dp_south_econ"]]$moc %>%
   geom_vline(xintercept=0, linetype="dotted")
 
 ## responsiveness in South
+# Summarize the responsiveness values found through linear modeling of
+#   policy liberalism against variables + opinion liberalism.
 model.ls[["dp_south_social"]]$moc %>%
   mutate(MassSouth = MassM1_mean + `MassM1_mean:South11South`) %>%
   MOCsumm
@@ -280,6 +328,7 @@ model.ls[["dp_south_econ"]]$moc %>%
 
 ### Long-run Multiplier
 ## Social
+# Adjust regressed variables to apply for time-lagged applications
 model.ls[["dp_south_social"]]$moc %>%
   mutate(MassM1Nonsouth = `MassM1_mean`,
          MassM1South = `MassM1_mean` + `MassM1_mean:South11South`,
@@ -292,6 +341,7 @@ model.ls[["dp_south_social"]]$moc %>%
   MOCsumm
 
 ## Econ
+# Adjust regressed variables to apply for time-lagged applications
 model.ls[["dp_south_econ"]]$moc %>%
   mutate(MassM1Nonsouth = `MassM1_mean`,
          MassM1South = `MassM1_mean` + `MassM1_mean:South11South`,
@@ -305,6 +355,11 @@ model.ls[["dp_south_econ"]]$moc %>%
 
 ### SELECTION
 ## Social
+# Apply a linear model to the democratic control variable using social opinion
+#   liberalism, first-group democratic control, state, and year
+#   as factors. Store this model, the z-test results, and method of composition error-accounting results.
+#   Plot the regression results with error accounted for by method of composition
+#   against social opinion policy liberalism.
 model.ls[["sel_social"]]$model <-
   plm(DemControl ~
         MassSocialM1_mean +
@@ -325,6 +380,9 @@ model.ls[["sel_social"]]$moc %>%
   geom_histogram()
 
 ## Econ
+# Update the above social liberalism model to use the same variables, but 
+#   with economic policy liberalism and economic opinion liberalism data.
+#   Store the resulting updated model as well and plot the same way as above.
 model.ls[["sel_econ"]]$model <- model.ls[["sel_social"]]$model %>%
   update(formula=. ~ . + MassEconM1_mean - MassSocialM1_mean)
 (model.ls[["sel_econ"]]$coeftest <-
@@ -340,6 +398,8 @@ model.ls[["sel_econ"]]$moc %>%
   geom_histogram()
 
 ## Econ + Social
+# Combine the social and economic selection models and plot against
+#   opinion data.
 model.ls[["sel_econ_social"]]$model <- model.ls[["sel_social"]]$model %>%
   update(formula=. ~ . + MassEconM1_mean)
 (model.ls[["sel_econ_social"]]$coeftest <-
@@ -355,6 +415,8 @@ model.ls[["sel_econ_social"]]$moc %>%
   geom_histogram()
 
 ## Econ + Social + PIDM1
+# Combine the social and economic social models with first-group party identification
+#   proportions and plot against opinion data.
 model.ls[["sel_econ_social_pid1"]]$model <- model.ls[["sel_social"]]$model %>%
   update(formula=. ~ . + MassEconM1_mean + DemPID2PartyM1_mean)
 (model.ls[["sel_econ_social_pid1"]]$coeftest <-
@@ -370,6 +432,8 @@ model.ls[["sel_econ_social_pid1"]]$moc %>%
   geom_histogram()
 
 ## Econ + Social + PIDM2
+# Combine the social and economic social models with second-group party identification
+#   proportions and plot against opinion data.
 model.ls[["sel_econ_social_pid2"]]$model <- model.ls[["sel_social"]]$model %>%
   update(formula=. ~ . + MassEconM1_mean + DemPID2PartyM2_mean)
 (model.ls[["sel_econ_social_pid2"]]$coeftest <-
@@ -396,6 +460,7 @@ model.ls[["sel_econ_social_pid2"]]$moc %>%
 
 
 ## Social and economic jointly significant?
+# Record joint model significance
 model.ls[["sel_econ_social"]]$moc %>%
   mutate(MassSocialPlusEcon = MassSocialM1_mean + MassEconM1_mean) %>%
   MOCsumm
@@ -420,6 +485,12 @@ model.ls[["sel_econ_social_pid2"]]$moc %>%
 
 ### PARTY EFFECTS
 ## Social
+# Apply a linear model to the social policy liberalism using democratic control
+#   proportions, social opinion liberalism, state, and year
+#   as factors. Store this model, the z-test results, and
+#   method of composition error-accounting results.
+#   Plot the regression results with error accounted for by method of composition
+#   against social opinion policy liberalism.
 model.ls[["dem_social"]]$model <-
   plm(Policy_mean ~
         DemControl + 
@@ -440,6 +511,9 @@ model.ls[["dem_social"]]$moc %>%
   geom_histogram()
 
 ## Econ
+# Update the above social liberalism model to use the same variables, but 
+#   with economic policy liberalism and economic opinion liberalism data.
+#   Store the resulting updated model as well and plot the same way as above.
 model.ls[["dem_econ"]]$model <- model.ls[["dem_social"]]$model %>%
   update(data=summ.pd.econ)
 (model.ls[["dem_econ"]]$coeftest <-
@@ -456,6 +530,11 @@ model.ls[["dem_econ"]]$moc %>%
 
 ### DYNAMIC RESPONSIVENESS
 ## Social
+# Apply a linear model to the social policy liberalism using social opinion 
+#   liberalism, state, and year as factors. Store this model, the z-test results, and
+#   method of composition error-accounting results.
+#   Plot the regression results with error accounted for by method of composition
+#   against social opinion policy liberalism.
 model.ls[["dp_social"]]$model <-
   plm(Policy_mean ~
         MassM1_mean + 
@@ -476,6 +555,9 @@ model.ls[["dp_social"]]$moc %>%
   geom_histogram()
 
 ## Econ
+# Update the above social liberalism model to use the same variables, but 
+#   with economic policy liberalism and economic opinion liberalism data.
+#   Store the resulting updated model as well and plot the same way as above.
 model.ls[["dp_econ"]]$model <- model.ls[["dp_social"]]$model %>%
   update(data=summ.pd.econ)
 (model.ls[["dp_econ"]]$coeftest <-
@@ -492,6 +574,12 @@ model.ls[["dp_econ"]]$moc %>%
 
 ### ADAPTATION
 ## Social
+# Apply a linear model to the social policy liberalism using party identification
+#   proportions, social opinion liberalism, first-group social policy liberalism,
+#   state, and year as factors. Store this model, the z-test results, and
+#   method of composition error-accounting results.
+#   Plot the regression results with error accounted for by method of composition
+#   against social opinion policy liberalism.
 model.ls[["adap_social"]]$model <-
   plm(Policy_mean ~
         DemControl + 
@@ -512,12 +600,17 @@ model.ls[["adap_social"]]$moc %>%
   facet_wrap(~variable, scales="free") +
   geom_histogram()
 
+# For a random sample of 100 iterations, update the model with democrat
+#   legislative proportion data.
 data.pd.social %>%
   MOC(its=sample(its, 100),
       update(model.ls[["adap_social"]]$model, . ~ . + DemPropLeg)) %>%
   MOCsumm()
 
 ## Econ
+# Update the above social liberalism model to use the same variables, but 
+#   with economic policy liberalism and economic opinion liberalism data.
+#   Store the resulting updated model as well and plot the same way as above.
 model.ls[["adap_econ"]]$model <- model.ls[["adap_social"]]$model %>%
   update(data=summ.pd.econ)
 (model.ls[["adap_econ"]]$coeftest <-
@@ -532,6 +625,8 @@ model.ls[["adap_econ"]]$moc %>%
   facet_wrap(~variable, scales="free") +
   geom_histogram()
 
+# For a random sample of 100 iterations, update the model with democrat
+#   legislative proportion data.
 data.pd.econ %>%
   MOC(its=sample(its, 100),
       update(model.ls[["adap_econ"]]$model, . ~ . + DemPropLeg)) %>%
@@ -539,6 +634,10 @@ data.pd.econ %>%
 
 
 ## Social
+# Apply a linear model to the social policy liberalism using social opinion liberalism, 
+#   years after the house election, first-group social policy liberalism, state,
+#   and year as factors. Store this model, the z-test results, and
+#   method of composition error-accounting results.
 model.ls[["ey_social"]]$model <-
   plm(Policy_mean ~
         MassM1_mean : YearAfterHouseElection +
@@ -553,6 +652,9 @@ model.ls[["ey_social"]]$moc <- data.pd.social %>%
 MOCsumm(model.ls[["ey_social"]]$moc)
 
 ## Econ
+# Update the above social liberalism model to use the same variables, but 
+#   with economic policy liberalism and economic opinion liberalism data.
+#   Store the resulting updated model as well.
 model.ls[["ey_econ"]]$model <- model.ls[["ey_social"]]$model %>%
   update(data=summ.pd.econ)
 (model.ls[["ey_econ"]]$coeftest <-
@@ -564,6 +666,9 @@ MOCsumm(model.ls[["ey_econ"]]$moc)
 ## Mediation estimates
 ## method 1 (multiplication)
 ## Social
+# Select an (unknown) subset of columns for social selection estimates
+#   as well as the party effect model results to calculate multiplicative
+#   mediation estimates for effect and reverse effect.
 social_on_dem <- subset(model.ls[["sel_social"]]$moc,, MassSocialM1_mean)
 dem_on_social <- dplyr::select(model.ls[["dem_social"]]$moc, DemControl)
 mediation_social <- social_on_dem * dem_on_social
@@ -572,6 +677,7 @@ mediation_social <- social_on_dem * dem_on_social
 (mediation_social_z <- mediation_social_est / mediation_social_se)
 apply(mediation_social, 2, pNorm)
 ## Econ
+# Repeat the above process done for social estimates for economic estimates.
 econ_on_dem <- subset(model.ls[["sel_econ"]]$moc,, MassEconM1_mean)
 dem_on_econ <- dplyr::select(model.ls[["dem_econ"]]$moc, DemControl)
 mediation_econ <- econ_on_dem * dem_on_econ
@@ -590,6 +696,8 @@ mediation_econ_est / model.ls[["dp_econ"]]$moc %>%
 
 ## method 2 (subtraction)
 ## social
+# Calculate subtractive mediation estimates for adaptation and dynamic
+#   responsiveness.
 (model.ls[["dp_social"]]$moc %>%
  MOCsumm(digits=5) %>%
  subset(variable == "MassM1_mean_est", value)) -
@@ -597,6 +705,7 @@ mediation_econ_est / model.ls[["dp_econ"]]$moc %>%
    MOCsumm(digits=5) %>%
    subset(variable == "MassM1_mean_est", value))
 ## econ
+# Repeat the above procedure done for social estimates for economi estimates.
 (model.ls[["dp_econ"]]$moc %>%
  MOCsumm(digits=5) %>%
  subset(variable == "MassM1_mean_est", value)) -
@@ -606,6 +715,10 @@ mediation_econ_est / model.ls[["dp_econ"]]$moc %>%
 
 ### MODERATORS
 ## Social by Time
+# Apply a linear model to the social policy liberalism using social opinion liberalism, 
+#   the year being before 1972, first-group social policy liberalism, state, 
+#   and year as factors. Store this model, the z-test results, and
+#   method of composition error-accounting results.
 model.ls[["dp_social_time"]]$model <-
   plm(Policy_mean ~
         MassM1_mean * Pre72 +
@@ -619,6 +732,9 @@ model.ls[["dp_social_time"]]$moc <- data.pd.social %>%
 MOCsumm(model.ls[["dp_social_time"]]$moc)
 
 ## Econ
+# Update the above social liberalism model to use the same variables, but 
+#   with economic policy liberalism and economic opinion liberalism data.
+#   Store the resulting updated model as well.
 model.ls[["dp_econ_time"]]$model <- model.ls[["dp_social_time"]]$model %>%
   update(data=summ.pd.econ)
 (model.ls[["dp_econ_time"]]$coeftest <-
@@ -628,6 +744,10 @@ model.ls[["dp_econ_time"]]$moc <- data.pd.econ %>%
 MOCsumm(model.ls[["dp_econ_time"]]$moc)
 
 ## Social by Time by South
+# Apply a linear model to the social policy liberalism using social opinion liberalism, 
+#   the year being before 1972, southernness, first-group social policy liberalism, state, 
+#   and year as factors. Store this model, the z-test results, and
+#   method of composition error-accounting results.
 model.ls[["dp_social_time_south"]]$model <-
   plm(Policy_mean ~
         MassM1_mean * Pre72 * South11 +
@@ -641,6 +761,9 @@ model.ls[["dp_social_time_south"]]$moc <- data.pd.social %>%
 MOCsumm(model.ls[["dp_social_time_south"]]$moc)
 
 ## Econ by Time by South
+# Update the above social liberalism model to use the same variables, but 
+#   with economic policy liberalism and economic opinion liberalism data.
+#   Store the resulting updated model as well.
 model.ls[["dp_econ_time_south"]]$model <-
   model.ls[["dp_social_time_south"]]$model %>%
   update(data=summ.pd.econ)
@@ -651,6 +774,12 @@ model.ls[["dp_econ_time_south"]]$moc <- data.pd.econ %>%
 MOCsumm(model.ls[["dp_econ_time_south"]]$moc)
 
 ## Social (Institutions)
+# Apply a linear model to the social policy liberalism using first-group
+#   social opinion liberalism, the year being before 1972, southernness,
+#   suffrage restriction index, campaign finance index, citizen policymaking
+#   index, the log of legislative days, first-group social policy liberalism,
+#   state, and year as factors. Store this model, the z-test results, and
+#   method of composition error-accounting results.
 model.ls[["dp_social_inst"]]$model <-
   plm(Policy_mean ~
         MassM1_mean * Pre72 * South11 +
@@ -668,6 +797,9 @@ model.ls[["dp_social_inst"]]$moc <- data.pd.social %>%
 MOCsumm(model.ls[["dp_social_inst"]]$moc)
 
 ## Econ (Institutions)
+# Update the above social liberalism model to use the same variables, but 
+#   with economic policy liberalism and economic opinion liberalism data.
+#   Store the resulting updated model as well.
 model.ls[["dp_econ_inst"]]$model <- model.ls[["dp_social_inst"]]$model %>%
   update(data=summ.pd.econ)
 (model.ls[["dp_econ_inst"]]$coeftest <-
@@ -679,6 +811,8 @@ MOCsumm(model.ls[["dp_econ_inst"]]$moc, digits=5)
 ################################################################################
 #### TABLES ####################################################################
 ################################################################################
+# The following code generates formatted LaTeX tables that summarize the findings
+#   of much of the analysis performed in the previous section of code.
 
 ### Table 1
 (tab1.ord <- c(grep("(?=.*social)(?=.*south)(?!.*time)",
@@ -874,6 +1008,9 @@ tab4.moc <- tab4.mods %>%
 
 ### LDV and LIV --- ADL(5,5,1)
 ## Social
+# Check robustness of social opinion liberalism and social policy liberalism
+#   impacts by testing across all group means and then running `clusterSE`
+#   to check robustness.
 dp.social.twoway.adl <-
   plm(Policy_mean ~ MassM1_mean + MassM2_mean + MassM3_mean +
         MassM4_mean + MassM5_mean +
@@ -896,6 +1033,8 @@ MOCsumm(dp.social.twoway.adl.moc2)
   
 
 ## Econ
+# Repeat the above procedure executed on social liberalism data with
+#   economic liberalism data.
 dp.econ.twoway.adl <-
   plm(Policy_mean ~ MassM1_mean + MassM2_mean + MassM3_mean + MassM4_mean
       + MassM5_mean + PolicyM1_mean + PolicyM2_mean + PolicyM3_mean
@@ -914,6 +1053,7 @@ dp.econ.twoway.adl.moc2 <- dp.econ.twoway.adl.moc %>%
                     PolicyM4_mean + PolicyM5_mean))
 MOCsumm(dp.econ.twoway.adl.moc2)
 
+# Generate a formatted LaTeX table that summarizes these robustness findings
 ADL.mods <- list(
   dp.social.twoway.adl, dp.econ.twoway.adl
 )
@@ -971,6 +1111,8 @@ plyr::laply(MOCmean(ADL.moc), function (x) x["adjrsq"])
 
 ## ERROR CORRECTION MODEL
 ## Social
+# Create an error correction model that models social policy liberalism against
+#   social opinion liberalism, year, and state as factors.
 dp.social.D01.twoway.ec <-
   plm(PolicyD01_mean ~ MassM1_mean + PolicyM1_mean + Year + StPO,
       data=summ.pd.social, model="pooling")
@@ -979,6 +1121,8 @@ dp.social.D01.twoway.ec.moc <- MOC(data=data.pd.social, its=its,
                                    dp.social.D01.twoway.ec)
 MOCsumm(dp.social.D01.twoway.ec.moc)
 ## Econ
+# Create an error correction model that models economic policy liberalism against
+#   economic opinion liberalism, year, and state as factors.
 dp.econ.D01.twoway.ec <-
   plm(PolicyD01_mean ~ MassM1_mean  + PolicyM1_mean + Year + StPO,
       data=summ.pd.econ, model="pooling")
@@ -1024,6 +1168,10 @@ MOCsumm(dp.econ.D01.time.moc)
 ### DIFFERENCED DV AND IV
 ## First Difference
 ## Social
+# Model social policy liberalism differenced with first-group social policy
+#   liberalism against first-group social policy liberalism, the difference
+#   in first-group and second-group social opinion liberalism, second-group
+#   social opinion liberalism, and year as factors.
 dp.social.D01D12.time <-
   plm(I(Policy_mean - PolicyM1_mean) ~ PolicyM1_mean +
         I(MassM1_mean - MassM2_mean) + MassM2_mean +
@@ -1034,6 +1182,8 @@ dp.social.D01D12.time.moc <-
   MOC(data=data.pd.social, its=its, dp.social.D01D12.time)
 MOCsumm(dp.social.D01D12.time.moc)
 ## Econ
+# Repeat the above procedure executed on social liberalism data for 
+#   economic liberalism data.
 dp.econ.D01D12.time <-
   plm(I(Policy_mean - PolicyM1_mean) ~ PolicyM1_mean +
         I(MassM1_mean - MassM2_mean) + MassM2_mean +
@@ -1044,6 +1194,8 @@ dp.econ.D01D12.time.moc <-
   MOC(data=data.pd.econ, its=its, dp.econ.D01D12.time)
 MOCsumm(dp.econ.D01D12.time.moc)
 
+# Generate a formatted LaTeX table that summarizes the above differenced
+#   model findings.
 D01.mods <- list(
   dp.social.D01.twoway.ec, dp.social.D01.twoway, dp.social.D01.time,
   dp.social.D01D12.time,
@@ -1083,6 +1235,9 @@ stargazer(D01.mods
 
 ### INSTITUTIONS
 ## Social
+# Model social policy liberalism against a combination of several
+#   standard-deviation-scaled measures along with the first-group policy
+#   liberalism, year, and state.
 dp.social.inst <-
   plm(Policy_mean ~
         MassM1_mean * Pre72 * South11 +
@@ -1113,6 +1268,8 @@ dp.social.inst.moc2 <- dp.social.inst.moc %>%
 MOCsumm(dp.social.inst.moc2)
 
 ## Econ
+# Repeat the above procedure done on social liberalism data for economic
+#   liberalism data.
 dp.econ.inst <-
   plm(Policy_mean ~
         MassM1_mean * Pre72 * South11 +
@@ -1141,6 +1298,8 @@ dp.econ.inst.moc2 <- dp.econ.inst.moc %>%
                          `MassM1_mean:scale1sd(LogLegDays0)`))
 MOCsumm(dp.econ.inst.moc2)
 
+# Generate a formatted LaTeX table that summarizes the robustness findings
+#   from the models generated above.
 inst.mods <- list(dp.social.inst, dp.econ.inst)
 inst.moc <- list(dp.social.inst.moc, dp.econ.inst.moc)
 
@@ -1198,7 +1357,10 @@ stargazer(inst.mods
               )
           ))
 
-
+# Calculate variance-inflation factors for the social policy liberalism
+#   modeled against social opinion liberalism and the year being before
+#   1972 used as factors along with a number of institutional effect
+#   factors and state.
 car::vif(lm(PolicySocial0_mean ~
               MassSocial0_mean +
               Pre72 + #South11  +
@@ -1214,6 +1376,8 @@ car::vif(lm(PolicySocial0_mean ~
        + StPO
     , data=summ))
 
+# Repeat the above calculation executed on social liberalism data, but for
+#   economic liberalism data.
 car::vif(lm(PolicyEcon0_mean ~
               MassEcon0_mean +
               Pre72 + #South11  +
@@ -1232,7 +1396,8 @@ car::vif(lm(PolicyEcon0_mean ~
 ### Is there any era in which responsiveness is greater the year after an
 ### election?
 ## Social
-
+# Model the impact of the election year and era along with social opinion
+#   liberalism on social policy liberalism.
 plm(PolicySocial_mean ~
       (MassSocialM1_mean : YearAfterHouseElection : Era4) + 
       (MassSocialM1_mean : Era4) +
@@ -1240,6 +1405,8 @@ plm(PolicySocial_mean ~
   , data=summ.pd, model="within", effect="twoway") %>%
   clusterSE()
 ## Econ
+# Model the impact of the election year and era along with economic opinion
+#   liberalism on economic policy liberalism.
 plm(PolicyEcon_mean ~
       (MassEconM1_mean : YearAfterHouseElection : Era4) + 
       (MassEconM1_mean : Era4) +
