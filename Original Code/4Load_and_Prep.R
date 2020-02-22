@@ -19,16 +19,21 @@ library(mapproj)
 #### FUNCTIONS #################################################################
 ################################################################################
 
+# Function that returns the passed in information scaled by one standard
+#   deviation.
 scale1sd <- function (x, center=TRUE) {
   s <- sd(x, na.rm=TRUE)
   m <- if (center) mean(x, na.rm=TRUE) else 0
   (x - m) / (1 * s)
 }
+# Function that returns the passed in information scaled by two standard
+#   deviations.
 scale2sd <- function (x, center=TRUE) {
   s <- sd(x, na.rm=TRUE)
   m <- if (center) mean(x, na.rm=TRUE) else 0
   (x - m) / (2 * s)
 }
+# Clean plot theme
 theme_clean <- function (base_size = 12) { 
   theme_grey(base_size) %+replace%
   theme(
@@ -42,16 +47,19 @@ theme_clean <- function (base_size = 12) {
     complete = TRUE
   ) 
 }
+# Basic statistical functions, stripping NA from the included values
 meanNA <- function (x) mean(x, na.rm=TRUE)
 medianNA <- function (x) median(x, na.rm=TRUE)
 sdNA <- function (x) sd(x, na.rm=TRUE)
 NC <- function (x) as.numeric(as.character(x))
 clusterSE <- function(x, method="arellano", cluster="group") {
+  # Preform a z-test on the values of `x` using robust covariance matrix estimators
   if (any(grepl("plm", class(x)))) {
     coeftest(x, plm::vcovHC(x, method=method, cluster=cluster))
   }
 }
 plmHC <- function (mod) {
+  # Get robust covariance matrix estimators of `mod`
   plm::vcovHC(mod, method="arellano", cluster="group")
 }
 MOC <- function (data, its, model, vcov=plmHC, prog.int=100, rsq=TRUE) {
@@ -84,12 +92,14 @@ MOC <- function (data, its, model, vcov=plmHC, prog.int=100, rsq=TRUE) {
   return(tildeB)
 }
 pEmp <- function (x) {
+  # The probability of being in a range around `x`
   p_pos <- mean(x < 0)
   p_neg <- mean(x > 0)
   p2side <- 2 * min(p_pos, p_neg)
   p2side
 }
 pNorm <- function (x) {
+  # The probability of being in a range around a normally-distributed `x`
   z <- abs(mean(x)/sd(x))
   p2side <- 2*(1 - pnorm(z))
   p2side
@@ -98,6 +108,7 @@ MOCsumm <- function (moc, regex="Mass|Policy|Dem|rsq", digits=3,
                      ff=funs(est = mean, se = sd, z = mean(.)/sd(.),
                              pnorm = pNorm(.),
                              pemp = pEmp(.))) {
+  # Summary of the method of composition as a dataframe
   summarise_at(moc, .vars=vars(matches(regex)), .funs=ff) %>%
     mutate_all(funs(round(., digits=digits))) %>%
     reshape2::melt(measure.vars=names(.))
@@ -108,10 +119,34 @@ MOCsumm <- function (moc, regex="Mass|Policy|Dem|rsq", digits=3,
 ################################################################################
 
 ### LOAD
+# Read in the merged variable and sample data saved at the end of Part 3
 setwd(paste0(rep.dir, "/intermediate-data"))
 data <- read.dta("data_for_analysis.dta")
 
 ### TRANSFORM
+# Add columns:
+#   Pre72: marks whether the sample point was before or after 1972
+#   name: lowercase state name
+#   South11: whether the state is southern
+#   GovElection: whether it is the year of a governor election
+#   YearAfterHouseElection: whether it is the year after a house election
+#   Era4: what era of years this occurred in
+#   South11Pre72: whether the state is southern and the point is befor 1972
+#   DemGov: what the governor party is
+#   DemControl: whether the democrats control the state
+#   CampaignFinanceIndex: campaign finance index
+#   CampaignFinanceIndex0: mean of the campaign finance index
+#   SuffrageRestrictionIndex: suffrage restriction index
+#   SuffrageRestrictionIndex0: mean of the suffrage restriction index
+#   CitizenPolicymakingIndex: citizen policymaking index
+#   CitizenPolicymakingIndex0: mean of the citizen policymaking index
+#   LogLegDays: log of the legislative days
+#   LogLegDays0: log of the legislative days normalized around the mean
+#   DemPropLeg: proportion of the legislature that is democrat
+#   DemPID2Party_s: proportion of the population that identifies as democrat
+# Create more columns for measure values normalized around the mean or scaled
+#   by the standard deviation.
+# Split column data into multiple descriptive variables for all samples taken
 data <- data %>%
   mutate(
     Pre72 = ifelse(year < 1972, "Pre-1972", "Post-1972"),
@@ -227,6 +262,9 @@ data <- data %>%
   ungroup()
 
 ### SUMMARIZE
+# Summarize all sample data around year, state, and other added measures
+#   in the previous data manipulation stage over variables listed in
+#   `inst_names`
 inst_names <- c("union_contribution_ban2", "individual_limit_mm",
                 "corporate_limit_mm", "poll_tax", "literacy_test", "direct_dem",
                 "term_limits_enact", "LogLegDays")
@@ -242,12 +280,16 @@ names(summ) <- gsub("\\_s", "\\_mean", names(summ))
 glimpse(summ)
 
 ### PANEL DATA FRAME
+# Store relevant summary data for each type of sample data into individual
+#   summary data frames
 summ.pd <- pdata.frame(summ, index=c("StPO", "Year"), row.names=FALSE)
 summ.pd.econ <- summ.pd
 names(summ.pd.econ) <- gsub("Econ", "", names(summ.pd), fixed=TRUE)
 summ.pd.social <- summ.pd
 names(summ.pd.social) <- gsub("Social", "", names(summ.pd), fixed=TRUE)
 
+# Store relevant sample data for each type of sample data into individual
+#   summary data frames
 data.pd <- pdata.frame(data, index=c("StPO", "Year"), row.names=FALSE)
 data.pd.econ <- data.pd
 names(data.pd.econ) <- gsub("Econ", "", names(data.pd), fixed=TRUE)
