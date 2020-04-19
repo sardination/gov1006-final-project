@@ -175,7 +175,7 @@ model.ls[["xs_south_social"]]$moc %>%
 #   with economic policy liberalism and economic opinion liberalism data.
 #   Store the resulting updated model as well and plot the same way as above.
 model.ls[["xs_south_econ"]]$model <- model.ls[["xs_south_social"]]$model %>%
-  update(data=summ.pd.social) # NOTE SK: THIS SHOULD SAY `summ.pd.econ`
+  update(data=summ.pd.econ) # NOTE SK: THIS SHOULD SAY `summ.pd.econ`
 (model.ls[["xs_south_econ"]]$coeftest <-
    clusterSE(model.ls[["xs_south_econ"]]$model))
 model.ls[["xs_south_econ"]]$moc <-
