@@ -1,0 +1,495 @@
+---
+title: "Gov 1006 Final Project - Milestone 7"
+author: "Suriya Kandaswamy"
+output: 
+  bookdown::pdf_document2:
+    keep_tex: true
+    biblio-style: "apalike"
+header-includes:
+   - \usepackage{dcolumn} 
+   - \usepackage{subfig}
+bibliography: "references.bib"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+library(gt)
+library(stargazer)
+library(tidyverse)
+library("rstanarm")
+
+library(foreign) ## for read.dta
+library(dplyr) ## for %>%, group_by, etc.
+library(plm) ## for panel models
+library(rms) ## for robust SEs
+library(lmtest) ## for coeftest
+library(clusterSEs) ## for bootstrapped SEs
+library(reshape2) ## for melt
+library(car)
+library(ggplot2)
+library(reshape2)
+library(maps)
+library(mapproj)
+```
+
+```{r setup_fns}
+StarsToBold <- function (text) {
+  out <- gsub("([[:digit:]]+)\\^\\{\\*+\\}", "\\\\textbf{\\1}", text)
+  cat(out, sep="\n")
+  invisible(out)
+}
+
+################################################################################
+#### FUNCTIONS #################################################################
+################################################################################
+
+# Function that returns the passed in information scaled by one standard
+#   deviation.
+scale1sd <- function (x, center=TRUE) {
+  s <- sd(x, na.rm=TRUE)
+  m <- if (center) mean(x, na.rm=TRUE) else 0
+  (x - m) / (1 * s)
+}
+# Function that returns the passed in information scaled by two standard
+#   deviations.
+scale2sd <- function (x, center=TRUE) {
+  s <- sd(x, na.rm=TRUE)
+  m <- if (center) mean(x, na.rm=TRUE) else 0
+  (x - m) / (2 * s)
+}
+# Clean plot theme
+theme_clean <- function (base_size = 12) { 
+  theme_grey(base_size) %+replace%
+  theme(
+    axis.title = element_blank(),
+    axis.text = element_blank() ,
+    panel.background = element_blank(),
+    panel.grid = element_blank(),
+    axis.ticks.length = grid::unit(0, "cm"),
+    panel.spacing = grid::unit(0, "lines"),
+    plot.margin = grid::unit(c(0, 0, 0, 0), "lines"),
+    complete = TRUE
+  ) 
+}
+# Basic statistical functions, stripping NA from the included values
+meanNA <- function (x) mean(x, na.rm=TRUE)
+medianNA <- function (x) median(x, na.rm=TRUE)
+sdNA <- function (x) sd(x, na.rm=TRUE)
+NC <- function (x) as.numeric(as.character(x))
+clusterSE <- function(x, method="arellano", cluster="group") {
+  # Preform a z-test on the values of `x` using robust covariance matrix estimators
+  if (any(grepl("plm", class(x)))) {
+    coeftest(x, plm::vcovHC(x, method=method, cluster=cluster))
+  }
+}
+plmHC <- function (mod) {
+  # Get robust covariance matrix estimators of `mod`
+  plm::vcovHC(mod, method="arellano", cluster="group")
+}
+MOC <- function (data, its, model, vcov=plmHC, prog.int=100, rsq=TRUE) {
+  ## Method of Composition (as described by Treier and Jackman)
+  tildeB <- as.data.frame(matrix(nrow=length(its), ncol=length(coef(model))))
+  R2 <- data.frame(rsq=rep(NA, length(its)), adjrsq=rep(NA, length(its)))
+  for (s in seq_along(its)) {
+    if (!s %% prog.int) print(s)
+    it <- its[s]
+    ## (1) Sample from p(x)
+    data_s <- subset(data, It == it)
+    names(data_s) <- gsub("\\_s$", "\\_mean", names(data_s)) 
+    ## (2) Sample from p(B|x,y):
+    ##     (a) Estimate B_s and Cov(B_s) conditional on x_s.
+    mod_s <- update(model, data=data_s)
+    hatB_s <- coef(mod_s)
+    hatV_s <- vcov(mod_s)
+    ##     (b) Sample \tilde{B_s} from MV(\hat{B_s}, \hat{Cov(B_s)}).
+    tildeB[s, ] <- MASS::mvrnorm(n = 1, mu = hatB_s, Sigma = hatV_s)
+    if (rsq) {
+      R2$rsq[s] <- summary(mod_s)$r.squared["rsq"]
+      R2$adjrsq[s] <- summary(mod_s)$r.squared["adjrsq"]
+    }
+  }
+  names(tildeB) <- names(coef(model))
+  if (rsq) {
+    tildeB$rsq <- R2$rsq
+    tildeB$adjrsq <- R2$adjrsq
+  }
+  return(tildeB)
+}
+pEmp <- function (x) {
+  # The probability of being in a range around `x`
+  p_pos <- mean(x < 0)
+  p_neg <- mean(x > 0)
+  p2side <- 2 * min(p_pos, p_neg)
+  p2side
+}
+pNorm <- function (x) {
+  # The probability of being in a range around a normally-distributed `x`
+  z <- abs(mean(x)/sd(x))
+  p2side <- 2*(1 - pnorm(z))
+  p2side
+}
+MOCsumm <- function (moc, regex="Mass|Policy|Dem|rsq", digits=3,
+                     ff=funs(est = mean, se = sd, z = mean(.)/sd(.),
+                             pnorm = pNorm(.),
+                             pemp = pEmp(.))) {
+  # Summary of the method of composition as a dataframe
+  summarise_at(moc, .vars=vars(matches(regex)), .funs=ff) %>%
+    mutate_all(funs(round(., digits=digits))) %>%
+    reshape2::melt(measure.vars=names(.))
+}
+
+model.names <- c(
+  ## Table 1
+  "xs_south_social", "xs_south_econ", "fe_south_social", "fe_south_econ",
+  "dyn_south_social", "dyn_south_econ", "dp_south_social", "dp_south_econ",
+  ## Table 2
+  "sel_social", "sel_econ", "sel_econ_social", "sel_econ_social_pid1",
+  "sel_econ_social_pid2",
+  ## Table 3
+  "dem_social", "dem_econ", "dp_social", "dp_econ", "adap_social", "adap_econ",
+  "ey_social", "ey_econ",
+  ## Table 4
+  "dp_social_time", "dp_econ_time", "dp_social_time_south",
+  "dp_econ_time_south", "dp_social_inst", "dp_econ_inst"
+)
+
+model.ls <- vector("list", length=length(model.names))
+names(model.ls) <- model.names
+```
+
+# Introduction
+The paper _Policy Preferences and Policy Change: Dynamic Responsiveness in the American States, 1936-2014_ [@caughey2018policy] discusses the predictors of state policy change and pinpoints what factors have the strongest impact on a state's liberalism. In particular, the authors focus on mass political consensus and state policy response to changes in this consensus. They have acquired measures of mass policy preferences through an accumulation of multiple poll responses over time and of state policy liberalism using some defined estimates ^[These quantified liberalism estimates are estimated following a procedure defined by @caughey2016dynamics]. Responsiveness is then measured as a relationship between the liberalism of the masses and the liberalism of the policies at each given moment in time. All code can be found in my Github repository ^[All analysis for this paper is available in the Github repository at https://github.com/sardination/gov1006-final-project].
+
+Ultimately, the authors of the paper run different types of regressions using mass liberalism (from opinion data) and policy liberalism (using measures as described in @caughey2016dynamics) as independent variables in addition to other explanatory factors such as whether a state is in the "South" or not, whether it was an election year, and a number of other features in order to determine how mass liberalism impacts policy liberalism. They find that state policies tend to respond to mass opinion in terms of liberalism, both for economic and social issues. They also find that state policies respond more strongly in the social case than in the economic one.
+
+Interestingly, these correlations may have become more pronounced since the Carter presidency due to an increase in partisan politics shifting towards hyperpartisanism, as individual identify more strongly with a party's views on both social and economic issues and thus will reflect policy changes that align with these views [@erikson2006public]. Some scholars, like @achen2017democracy, have claimed that mass liberalism has little to no effect on policy liberalism, but the results of this paper indicate the true effect is possibly otherwise.
+
+# Extension
+
+It might be interesting to see whether Democratic control within a state has an effect on the responsiveness of its policy liberalism to mass liberalism. While the paper has examined the effect that Democratic control in a specified year has on policy liberalism itself, it does not examine whether states with more Democratic control, for example, react more to a state's mass liberalism than states without. The way to do this is to include the interaction between Democratic control and mass liberalism in the formula when trying to explain policy liberalism. This way, any corrections given by Democratic control will contribute to the explanation of policy liberalism, and we can correct for Democratic control as an effect on *responsiveness* rather than just *liberalism*. Ideally, whether a government is under Democratic control or not should not have an effect on its responsiveness in terms of policy liberalism to mass liberalism and we would hope to see a negligible interaction between mass liberalism and Democratic control when trying to explain policy liberalism. It is possible, though, that one party may be more prone to exercising control in state governments in a way that does not reflect the preferences of the people, and this analysis will hopefully be able to expose whether Democratic control dictates how well a government is able to serve the needs of its people.
+
+We include the interaction between mass liberalism and Democratic control in Table 1 by replicating Table 1 from the paper replacing the "South" variable with "DemControl". We find from column (1) that the cross-sectional relationship of mass liberalism and policy liberalism for social issues of when the legislature is fully Democratic-controlled is nearly one-to-one. The cross-sectional relationship for social issues is significantly large for all types of legislatures, but appears to be stronger for legislatures that are more Democratic. Interestingly, column (5) shows that the cross-sectional relationship of mass liberalism and policy liberalism for economic issues correlates in the opposite direction. When legislatures are completely controlled by non-Democrats, the cross-sectional relationship between mass liberalism and policy liberalism is nearly the same between social and economic issues, but the more Democratic a legislature is, the weaker (albeit still present) the relationship is between mass opinions and actual policy implementation for economic issues.
+
+Dynamic responsiveness accounting for state and year fixed effects, though, is indicated in columns (2) and (6). The implications here are that for states in years where the legislature is completely controlled by non-Democrats, an increase by 1 SD in mass liberalism on social issues is correlated with an increase of 0.31 SD in policy liberalism while a 1 SD increase in mass liberalism on economic issues is similarly correlated with an increase of 0.33 SD in policy liberalism. The responsiveness for both social and economic issues is apparently lower in state-years with more Democratic control in the legislature, as indicated by the negative interaction coefficient for mass liberalism against Democratic control. The responsiveness for social issues in more Democratic legislatures is nearly as high, but the responsiveness for economic issues in more Democratic legislatures is significantly lower, with completely Democratic-controlled legislatures responding to a 1 SD increase in mass liberalism with a 0.1 SD increase in policy liberalism.
+
+As expected, columns (3) and (7) demonstrate that future policy liberalism, without accounting for state fixed effects, is heavily impacted by past policy liberalism for both social and economic issues with mass liberalism and Democratic control having a small, but not nearly as significant impact on responsiveness. When adding state fixed effects back into the models in columns (4) and (8), the impact of previous policy liberalism is still quite significant and mass liberalism and Democratic control less so. This is expected, as policy generally experiences change over time, and a state with liberal policies will evolve in its liberalism regardless of which party may be in power in any given year.
+
+```{r ext_tables, results='asis'}
+# Load data
+load("extensiondata.RData")
+
+### Table 1
+stargazer_table <- capture.output(ext_tab1.mods %>%
+  stargazer(
+    type="latex"
+  , header=FALSE
+  , float=FALSE
+  , se=ext_tab1.moc.se
+  , coef=ext_tab1.moc.est
+  , t.auto=TRUE
+  , p.auto=TRUE ## from standard normal (very close to t when DF = 3,500)
+  , omit=c("Year", "StPO|Constant|^DemControl$")
+  , omit.labels=c("Year $\\times$ DemControl FEs", "State FEs")
+  , omit.stat=c("F", "rsq")
+  , omit.table.layout = "n"
+  , align=TRUE
+  , initial.zero=FALSE
+  , dep.var.caption="DV: Domain-Specific Policy Liberalism ($t$)"
+  , dep.var.labels=c(
+      "------------ Social ------------ $|$ ----------- Economic -----------")
+  , dep.var.labels.include=TRUE
+  , column.labels=c("XS", "FE", "LDV", "DP", "XS", "FE", "LDV", "DP")
+  , order=c("MassM1\\_mean$", "MassM1\\_mean:DemControl",
+            "PolicyM1")
+  , no.space=TRUE
+  , digits=3
+  , column.sep.width = "0.5pt"
+  , font.size = "footnotesize"
+  , covariate.labels=c(
+      "Mass Liberalism$_{t-1}$",
+      "Mass Lib$_{t-1}$ $\\times$ DemControl$_{t}$",
+      "Policy Liberalism$_{t-1}$")
+  ))
+
+stargazer_table %>%
+  StarsToBold()
+```
+
+```{r load_data}
+# Load replication resuts
+load("analyzedata.RData")
+```
+
+# Appendix
+
+Using the replication data and code provided by Caughey and Warshaw [@caughey_data], all major findings and figures can be replicated and analyzed as follows. Code is modified as needed for the purposes of this assignment and extension. Figures and tables are replicated under sections with the same headers as shown in the paper. While some numbers differ slightly, all results discussed in the paper were replicated.
+
+## Figure 1 - Mass Liberalism by State, 1940-2010
+The top half of the figure shows the population's liberalism by state in terms of opinions about economic topics (mass economic liberalism) while the bottom half shows the population's liberalsim by state in terms of opinions about social topics (mass social liberalism).
+
+```{r liberalism_maps}
+# Generate US maps of opinion liberalism as done in 6Figures.R. Edited for the purposes
+#   of this assignment
+
+summ.map <- merge(summ, map_data("state"), by.x="name", by.y="region")
+summ.map <- arrange(summ.map, group, order)
+
+map.yrs <- c(1940, 1975, 2010)
+
+# Create economic liberalism US map colored by opinion data.
+## Economic
+summ.map %>%
+  filter(Year %in% map.yrs) %>%
+  ggplot(aes(x=long, y=lat, group=group, fill=MassEcon00_mean)) +
+  facet_wrap(~Year, ncol=3) +
+  geom_polygon(colour="black", size=rel(.1)) +
+  coord_map("polyconic") +
+  viridis::scale_fill_viridis(direction=1) +
+  theme_clean() +
+  guides(fill=FALSE)
+
+## Social
+summ.map %>%
+  filter(Year %in% map.yrs) %>%
+  ggplot(aes(x=long, y=lat, group=group, fill=MassSocial00_mean)) +
+  facet_wrap(~Year, ncol=3) +
+  geom_polygon(colour="black", size=rel(.1)) +
+  coord_map("polyconic") +
+  viridis::scale_fill_viridis(direction=1) +
+  theme_clean() +
+  guides(fill=FALSE)
+```
+
+## Figure 2 - Cross-Sectional Relationship between Mass and Government Policy Liberalism, by Region, Era, and Issue Domain
+This figure displays the relationship between mass liberal opinion and the liberalism of government policy, both for economic and social issues. It utilizes two models: one for southern states and one for non-southern states. Each category of states is displayed on the plots with its own line.
+
+```{r cross_sectional_mass_policy}
+# Generate cross-sectional relationship plots as done in 6Figures.R.
+
+## Economic
+summ %>%
+  group_by(Pre72, StPO, South11) %>%
+  summarise(Years = paste0(min(NC(Year)), "-", max(NC(Year))),
+            PolicyEcon00_mean = mean(PolicyEcon00_mean, na.rm=TRUE),
+            MassEcon00_mean = mean(MassEcon00_mean, na.rm=TRUE)) %>%
+  ggplot(aes(x=MassEcon00_mean, PolicyEcon00_mean, label=StPO,
+             color=South11, lty=South11)) +
+  facet_wrap(~Years, scales="free") +
+  geom_smooth(method=lm) +
+  geom_text(show.legend=FALSE, alpha=2/3) +
+  scale_colour_manual(values = c("black", "grey40")) +
+  theme_bw() +
+  theme(legend.position="none", plot.title = element_text(hjust = 0.5)) +
+  labs(x="Mass Liberalism", y="Government Liberalism", color=NULL, lty=NULL) +
+  ggtitle("Economic Policies")
+
+## Social
+summ %>%
+  group_by(Pre72, StPO, South11) %>%
+  summarise(Years = paste0(min(NC(Year)), "-", max(NC(Year))),
+            PolicySocial00_mean = mean(PolicySocial00_mean, na.rm=TRUE),
+            MassSocial00_mean = mean(MassSocial00_mean, na.rm=TRUE)) %>%
+  ggplot(aes(x=MassSocial00_mean, PolicySocial00_mean, label=StPO,
+             color=South11, lty=South11)) +
+  facet_wrap(~Years, scales="free") +
+  geom_smooth(method=lm) +
+  geom_text(show.legend=FALSE, alpha=2/3) +
+  scale_colour_manual(values = c("black", "grey40")) +
+  theme_bw() +
+  theme(legend.position="none", plot.title = element_text(hjust = 0.5)) +
+  labs(x="Mass Liberalism", y="Government Liberalism", color=NULL, lty=NULL) +
+  ggtitle("Social Policies") 
+```
+
+## Table 1 - Cross-sectional and dynamic responsiveness, by issue domain and region.
+This table details the linear regression analysis done on explaining policy liberalism in year $t$ given the variables of mass liberalism in the year $t-1$, whether a state is in the "South" or not, and policy liberalism in the year $t-1$.
+
+```{r responsiveness_table, results='asis'}
+# Copied from replication code in 8Tables.R. Generates table explaining policy liberalism
+#   using prior year mass and policy liberalism
+
+stargazer_table <- capture.output(tab1.mods %>%
+  stargazer(
+    type="latex"
+  , header=FALSE
+  , float=FALSE
+  , se=tab1.moc.se
+  , coef=tab1.moc.est
+  , t.auto=TRUE
+  , p.auto=TRUE ## from standard normal (very close to t when DF = 3,500)
+  , omit=c("Year|Constant|^South11South$", "StPO")
+  , omit.labels=c("Year $\\times$ South FEs", "State FEs")
+  , omit.stat=c("F", "rsq")
+  , omit.table.layout = "n"
+  , align=TRUE
+  , initial.zero=FALSE
+  , dep.var.caption="DV: Domain-Specific Policy Liberalism ($t$)"
+  , dep.var.labels=c(
+      "------------ Social ------------ $|$ ----------- Economic -----------")
+  , dep.var.labels.include=TRUE
+  , column.labels=c("XS", "FE", "LDV", "DP", "XS", "FE", "LDV", "DP")
+  , order=c("MassM1\\_mean$", "MassM1\\_mean:South11South",
+            "PolicyM1")
+  , no.space=TRUE
+  , digits=3
+  , column.sep.width = "0.5pt"
+  , font.size = "footnotesize"
+  , covariate.labels=c(
+      "Mass Liberalism$_{t-1}$",
+      "Mass Lib$_{t-1}$ $\\times$ South",
+      "Policy Liberalism$_{t-1}$")
+  ))
+
+stargazer_table %>%
+  StarsToBold()
+```
+
+## Table 2 - Effect of mass policy preferences and partisanship on partisan turnover
+This table shows the effect that mass liberalism and partisan control in year $t-1$ have on partisan control in year $t$.
+
+```{r pref_partisan_on_turnover_table, results='asis'}
+# Copied from replication code in 8Tables.R. Generates table to explain partison turnover
+#   using mass policy prefs and partisanship from prior years
+
+stargazer_table <- capture.output(tab2.mods %>%
+  stargazer(
+    type="latex"
+  , header=FALSE
+  , float=FALSE
+  , se=tab2.moc.se
+  , coef=tab2.moc.est
+  , t.auto=TRUE
+  , p.auto=TRUE ## from standard normal (very close to t when DF = 3,500)
+  , omit=c("Year", "StPO|Constant")
+  , omit.labels=c("Year FEs", "State FEs")
+  , omit.stat=c("F", "rsq")
+  , omit.table.layout = "n"
+  , initial.zero=FALSE
+  , align=TRUE
+  , dep.var.caption="DV: Democratic Control Index  ($t$)"
+  , dep.var.labels.include=FALSE
+  , no.space=TRUE
+  , digits=3
+  , column.sep.width = "0.5pt"
+  , font.size = "footnotesize"
+  , order=c("MassSocial", "MassEcon", "PID", "Control")
+  , covariate.labels=c(
+      "Mass Social Lib$_{t-1}$",
+      "Mass Econ Lib$_{t-1}$",
+      "Mass Dem PID$_{t-2}$",
+      "Dem Control$_{t-1}$"
+      )
+  ))
+
+stargazer_table %>%
+  StarsToBold()
+
+```
+
+## Table 3 - Partisan selection and adaptation as mechanisms of dynamic responsiveness.
+This table shows the effect that current (year $t$) partisan control as well as year $t-1$'s mass liberalism, whether it was an election year, and policy liberalism have on social and economic policy liberalism in year $t$. 
+
+```{r selection_adap_responsiveness_table, results='asis'}
+# Copied from replication code in 8Tables.R. Generates table explaining policy liberalism
+#   as a prior year liberalism and current year partisanship
+
+stargazer_table <- capture.output(tab3.mods %>%
+  stargazer(
+    type="latex"
+  , header=FALSE
+  , float=FALSE
+  , se=tab3.moc.se
+  , coef=tab3.moc.est
+  , t.auto=TRUE
+  , p.auto=TRUE ## from standard normal (very close to t when DF = 3,500)
+  , omit=c("^Year", "StPO|Constant")
+  , omit.labels=c("Year FEs", "State FEs")
+  , omit.stat=c("F", "rsq")
+  , omit.table.layout = "n"
+  , align=TRUE
+  , dep.var.caption="DV: Domain-Specific Policy Liberalism ($t$)"
+  , dep.var.labels=c(
+      "-------------- Social --------------- $|$ ----------- Economic -----------")
+  , dep.var.labels.include=TRUE
+  , order=c("DemControl", "MassM1\\_mean$", "YearAfterHouseElectionFALSE",
+            "YearAfterHouseElectionTRUE", "Policy")
+  , single.row=FALSE
+  , no.space=TRUE
+  , initial.zero=FALSE
+  , digits=3
+  , column.sep.width = "-10pt"
+  , font.size = "footnotesize"
+  , covariate.labels=c(
+      "Dem Control$_{t}$",
+      "Mass Lib$_{t-1}$",
+      "Mass Lib$_{t-1}$ (No Elec$_{t-1}$)",
+      "Mass Lib$_{t-1}$ (Elec$_{t-1}$)",
+      "Policy Lib$_{t-1}$")    
+  ))
+
+stargazer_table %>%
+  StarsToBold()
+
+```
+
+## Table 4 - Moderators of dynamic responsiveness
+This table explains social and economic policy liberalism in year $t$ through several factors (all listed in the table) in year $t-1$.
+
+```{r dynamic_resp_moderators, results='asis'}
+# Copied from replication code in 8Tables.R. Generates table explaining policy liberalism based
+#   on several factors.
+
+stargazer_table <- capture.output(tab4.mods %>%
+  stargazer(
+    type="latex"
+  , header=FALSE
+  , float=FALSE
+  , se=tab4.moc.se
+  , coef=tab4.moc.est
+  , t.auto=TRUE
+  , p.auto=TRUE ## from standard normal (very close to t when DF = 4,500)
+  , omit=c("^Year|^Pre72Pre-1972$|^Pre72Pre-1972:South11South$",
+           "StPO|Constant|^South11South$")
+  , omit.labels=c("Year FEs", "State FEs")
+  , omit.stat=c("F", "rsq")
+  , omit.table.layout = "n"
+  , align=TRUE
+  , dep.var.caption="DV: Domain-Specific Policy Liberalism ($t$)"
+  , dep.var.labels=c(
+      "-------------- Social -------------- $|$ ----------- Economic -----------")
+  , dep.var.labels.include=TRUE
+  , single.row=FALSE
+  , no.space=TRUE
+  , initial.zero=FALSE
+  , digits=3
+  , column.sep.width = "-10pt"
+  , font.size = "footnotesize"
+  , order=c("^MassM1\\_mean$",
+            "^MassM1\\_mean:Pre72Pre-1972$",
+            "^MassM1\\_mean:South11South$",
+            "Pre72Pre-1972:South11South$",
+            "Suffrage", "Campaign", "Citizen", "LegDays", "PolicyM1")
+  , covariate.labels=c(
+      "Mass Liberalism$_{t-1}$",
+      "Mass Lib$_{t-1} \\times$ Pre-1972",
+      "Mass Lib$_{t-1} \\times$ South",
+      "Mass Lib$_{t-1} \\times$ Pre-1972 $\\times$ South",
+      "Suffrage Restriction",
+      "Suff Restrict $\\times$ Mass Lib$_{t-1}$",
+      "Contribution Limits",
+      "Contrib Limit $\\times$ Mass Lib$_{t-1}$",
+      "Citizen Government",
+      "Citizen Gov't $\\times$ Mass Lib$_{t-1}$",
+      "Legislative Days (Logged)",
+      "Leg Days $\\times$ Mass Lib$_{t-1}$",
+      "Policy Liberalism$_{t-1}$")
+  ))
+stargazer_table %>%
+  StarsToBold()
+```
+
+# References
+
+
+
