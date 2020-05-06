@@ -1,6 +1,7 @@
 ---
 title: "Upholding American Democracy: Dynamic Responsiveness and Partisan Effects"
 author: "Suriya Kandaswamy"
+date: "May 6, 2020"
 output: 
   bookdown::pdf_document2:
     keep_tex: true
